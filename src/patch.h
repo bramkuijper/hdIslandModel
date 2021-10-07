@@ -1,14 +1,9 @@
 #ifndef PATCH_HPP
 #define PATCH_HPP
 
+#include "individual.h"
 #include <vector>
 
-struct Individual 
-{
-    bool is_hawk;
-    double payoff;
-    double prob_hawk;
-};
 
 // Patch struct
 class Patch 

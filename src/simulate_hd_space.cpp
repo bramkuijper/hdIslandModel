@@ -29,6 +29,7 @@ SimulateHDSpatial::SimulateHDSpatial(
             ,bool const is_pure = true
             ,int const output_nth_timestep = 1
             ,double const mu = 0.01
+            ,double const mu_d = 0.01
             ,int const max_time = 500) :
     rng_r((std::random_device())()) // init random number generator
     ,uniform(0.0, 1.0)
@@ -43,20 +44,28 @@ SimulateHDSpatial::SimulateHDSpatial(
     ,d{dispersal}
     ,is_pure{is_pure}
     ,output_nth_timestep{output_nth_timestep}
+    ,mu{mu}
+    ,mu_d{mu_d}
     ,max_time{max_time}
 {
     // loop through all the patches
     for (size_t patch_idx = 0; patch_idx < Npatches; ++patch_idx)
     {
-        for (size_t ind_idx = 0; ind_idx < NbreedersPatch; ++ind_idx)
+        assert(pop[patch_idx].breeders.size() == Nbp);
+        assert(pop[patch_idx].payoffs.size() == Nbp);
+
+        for (size_t ind_idx = 0; ind_idx < Nbp; ++ind_idx)
         {
             // initialize this population
             pop[patch_idx].breeders[ind_idx].is_hawk = 
                 uniform(rng_r) < init_pHawk;
-
+            
             pop[patch_idx].breeders[ind_idx].payoff = 0.0;
 
             pop[patch_idx].breeders[ind_idx].prob_hawk = init_pHawk;
+
+            pop[patch_idx].breeders[ind_idx].disperse[0] = d;
+            pop[patch_idx].breeders[ind_idx].disperse[1] = d;
         }
     }
 } // SimulateHDSpatial::SimulateHDSpatial()
@@ -71,7 +80,10 @@ void SimulateHDSpatial::interact_reproduce()
     double baseline_fitness = c;
 
     double sum_payoffs = 0.0;
+    double sum_d = 0.0;
+
     double local_sum_payoffs = 0.0;
+    double local_sum_d = 0.0;
 
     double payoff1, payoff2;
 
@@ -80,8 +92,8 @@ void SimulateHDSpatial::interact_reproduce()
     // later on
     std::vector<double> payoffs_immigrant_parents(pop.size() * Nbp);
     
-    // counter to keep track of payoffs
-    int payoff_ctr = 0;
+    // counter to keep track of payoff distribution()
+    int payoff_idx = 0;
 
     for (size_t patch_idx = 0; 
             patch_idx < pop.size(); ++patch_idx)
@@ -106,6 +118,10 @@ void SimulateHDSpatial::interact_reproduce()
         }
 
         local_sum_payoffs = 0.0;
+        local_sum_d = 0.0;
+
+        assert(pop[patch_idx].breeders.size() == Nbp);
+        assert(pop[patch_idx].payoffs.size() == Nbp);
 
         // loop through pairs
         for (size_t ind_idx = 0; 
@@ -141,21 +157,21 @@ void SimulateHDSpatial::interact_reproduce()
                 payoff2 += payoff_matrix[ind2_is_hawk][ind1_is_hawk];
             }
 
-            sum_payoffs += payoff1 + payoff2;
+            sum_payoffs += d1 * payoff1 + d2 * payoff2;
+
             local_sum_payoffs += payoff1 + payoff2;
 
-            // add to total payoff distribution
-            assert(payoff_ctr + 2 < payoffs_immigrant_parents.size());
+            assert(payoff_idx + 2 <= payoffs_immigrant_parents.size());
 
-            payoffs_immigrant_parents[++payoff_ctr] = payoff1;
-            payoffs_immigrant_parents[++payoff_ctr] = payoff2;
+            payoffs_immigrant_parents[payoff_idx++] = payoff1;
+            payoffs_immigrant_parents[payoff_idx++] = payoff2;
             
 
             pop[patch_idx].payoffs[ind_idx] = payoff1;
             pop[patch_idx].payoffs[ind_idx + 1] = payoff2;
 
             pop[patch_idx].breeders[ind_idx].payoff = payoff1;
-            pop[patch_idx].breeders[ind_idx+1].payoff = payoff2;
+            pop[patch_idx].breeders[ind_idx + 1].payoff = payoff2;
 
         } // size_t ind_idx = 0, ind_idx += 2
 
@@ -193,7 +209,8 @@ void SimulateHDSpatial::interact_reproduce()
         locals_per_patch = pop[patch_idx].total_payoff * (1.0 - d);
 
         // competition function
-        prob_local = locals_per_patch / (locals_per_patch + immigrants_per_patch);
+        prob_local = locals_per_patch / 
+            (locals_per_patch + immigrants_per_patch);
 
         // make distribution of local payoffs
         std::discrete_distribution<int> local_payoffs(
@@ -220,19 +237,23 @@ void SimulateHDSpatial::interact_reproduce()
 
                 // get patch idx
                 patch_sample_idx = int(floor((double) sample / Nbp)) % Npatches;
-                Rcpp::Rcout << patch_idx << std::endl;
-
             }
 
             assert(parent_sample_idx >= 0);
             assert(parent_sample_idx < Nbp);
             assert(parent_sample_idx < pop[patch_sample_idx].breeders.size());
+            assert(ind_idx < Nbp);
+            assert(ind_idx >= 0);
 
             create_kid(
                     pop[patch_sample_idx].breeders[parent_sample_idx]
                     ,recruits[ind_idx]
                     );
         } //end for int ind_idx;
+
+        assert(pop[patch_idx].breeders.size() == recruits.size());
+
+        pop[patch_idx].breeders = recruits;
     } // end for (int patch_idx = 0; 
         //patch_idx < pop.size(); ++patch_idx)
 } // end void SimulateHDSpatial::interact_reproduce()
@@ -243,7 +264,7 @@ void SimulateHDSpatial::create_kid(Individual &parent, Individual &kid)
     kid.prob_hawk = is_pure ? 
         0.0 
         : 
-        mutate(parent.prob_hawk);
+        mutate_prob(parent.prob_hawk, mu);
 
 
     kid.is_hawk = is_pure ? 
@@ -251,11 +272,15 @@ void SimulateHDSpatial::create_kid(Individual &parent, Individual &kid)
         :
         uniform(rng_r) < kid.prob_hawk;
 
+    kid.disperse[0] = mutate_prob(parent.disperse[0], mu_d);
+    kid.disperse[1] = mutate_prob(parent.disperse[1], mu_d);
+
 } // end create_kid()
 
-double SimulateHDSpatial::mutate(double const orig_val)
+double SimulateHDSpatial::mutate_prob(double const orig_val, double const mu)
 {
-    double val =orig_val;
+    double val = orig_val;
+
     if (uniform(rng_r) < mu)
     {
         std::normal_distribution<double> mu_val(0.0, 0.1);
@@ -278,6 +303,7 @@ double SimulateHDSpatial::mutate(double const orig_val)
 bool SimulateHDSpatial::mutate(bool const val)
 {
     bool tval = val;
+
     if (uniform(rng_r) < mu)
     {
         tval = !tval;
@@ -295,18 +321,20 @@ Rcpp::DataFrame SimulateHDSpatial::run()
     Rcpp::NumericVector sd_pHawk(floor((double)max_time / output_nth_timestep));
     Rcpp::NumericVector timestep_vec(floor((double)max_time / output_nth_timestep));
 
-    double fHawk, sd_fHawk, pHawk_x, sd_pHawk_x;
+    double fHawk = 0.0;
+    double sd_fHawk = 0.0; 
+    double pHawk_x = 0.0;
+    double sd_pHawk_x = 0.0;
 
     int stats_ctr = 0;
 
-    for (; generation < max_time; ++generation)
+    for (generation = 0; generation < max_time; ++generation)
     {
-        interact_reproduce();
-
         if (generation % output_nth_timestep == 0)
         {
             stats(fHawk, sd_fHawk, pHawk_x, sd_pHawk_x);
 
+            assert(stats_ctr < floor((double)max_time / output_nth_timestep));
             freqHawk[stats_ctr] = fHawk;
             sd_freqHawk[stats_ctr] = sd_fHawk;
             mean_pHawk[stats_ctr] = pHawk_x;
@@ -315,10 +343,16 @@ Rcpp::DataFrame SimulateHDSpatial::run()
 
             ++stats_ctr;
         }
+        
+        // check for user interruption
+        Rcpp::checkUserInterrupt();
+
+        interact_reproduce();
+
     }
 
     Rcpp::DataFrame simulation_data = Rcpp::DataFrame::create(
-            Rcpp::Named("generation") = timestep_vec 
+            Rcpp::Named("generation") = timestep_vec
             ,Rcpp::Named("freq_Hawk") = freqHawk
             ,Rcpp::Named("sd_freqHawk") = sd_freqHawk
             ,Rcpp::Named("mean_pHawk") = mean_pHawk 
@@ -345,9 +379,9 @@ void SimulateHDSpatial::stats(
     bool h;
     double p;
 
-    for (size_t patch_idx; patch_idx < pop.size(); ++patch_idx)
+    for (size_t patch_idx = 0; patch_idx < pop.size(); ++patch_idx)
     {
-        for (size_t ind_idx; 
+        for (size_t ind_idx = 0;
                 ind_idx < pop[patch_idx].breeders.size(); ++ind_idx)
         {
             h = pop[patch_idx].breeders[ind_idx].is_hawk;
@@ -356,6 +390,9 @@ void SimulateHDSpatial::stats(
             ss_freq_Hawk += h * h;
 
             p = pop[patch_idx].breeders[ind_idx].prob_hawk;
+
+            assert(p >= 0);
+            assert(p <= 1.0);
 
             mean_pHawk += p;
             ss_pHawk += p * p;
@@ -373,5 +410,6 @@ void SimulateHDSpatial::stats(
     sd_freq_Hawk = sd_freq_Hawk < 0.0 ? 0.0 : sqrt(sd_freq_Hawk);
     
     sd_pHawk = ss_pHawk - mean_pHawk * mean_pHawk;
+
     sd_pHawk = sd_pHawk < 0.0 ? 0.0 : sqrt(sd_pHawk);
 } //end stats()

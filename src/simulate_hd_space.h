@@ -39,6 +39,7 @@ class SimulateHDSpatial
 
         // mutation rate
         double mu;
+        double mu_d;
 
         // max time the simulation runs
         int max_time;
@@ -52,7 +53,7 @@ class SimulateHDSpatial
 
         void interact_reproduce();
 
-        double mutate(double const val);
+        double mutate_prob(double const val, double const mu);
         bool mutate(bool const val);
 
         void create_kid(Individual &parent, Individual &kid);
