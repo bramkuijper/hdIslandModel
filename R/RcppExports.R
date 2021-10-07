@@ -26,6 +26,10 @@
 #'    with mean 0 and standard deviation 0.01. \code{is_pure} is a boolean.
 #' @param mu Mutation rate from Hawk to Dove, from Dove to Hawk
 #'     (floating-point value between 0 and 1)
+#' @param mu Mutation rate of dispersal of hawks and doves. If \code{mu_d=0}
+#'     hawks and doves always disperse with probability \code{d}. If \code{mu_d>0}
+#'     hawks and doves evolve their own dispersal rates
+#'     (floating-point value between 0 and 1)
 #' @param max_time Maximum number of generations after which
 #'    the simulation ends -- in case of extinction simulation ends
 #'    earlier (integer).
@@ -52,13 +56,14 @@
 #'                 d=0.5, # 50% probability of dispersing as a juvenile
 #'                 is_pure=TRUE, # pure strategy rather than mixed
 #'                 mu=0.01, # mutation rate of a phenotype from H to D, D to H
+#'                 mu_d=0, # dispersal does not evolve
 #'                 max_time=10000, # maximum duration of the simulation
 #'                 pHawk_init=0.5, # initial frequency of hawks
 #'                 output_nth_generation=1 # output every generation
 #'                 )
 #'
 #' @export
-runHDSpace <- function(Npatches = 500L, Nbp = 2L, v = 1.0, c = 2.0, d = 0.5, is_pure = TRUE, mu = 0.01, max_time = 10000L, pHawk_init = 0.5, output_nth_generation = 1L) {
-    .Call('_hdIslandModel_runHDSpace', PACKAGE = 'hdIslandModel', Npatches, Nbp, v, c, d, is_pure, mu, max_time, pHawk_init, output_nth_generation)
+runHDSpace <- function(Npatches = 500L, Nbp = 2L, v = 1.0, c = 2.0, d = 0.5, is_pure = TRUE, mu = 0.01, mu_d = 0L, max_time = 10000L, pHawk_init = 0.5, output_nth_generation = 1L) {
+    .Call('_hdIslandModel_runHDSpace', PACKAGE = 'hdIslandModel', Npatches, Nbp, v, c, d, is_pure, mu, mu_d, max_time, pHawk_init, output_nth_generation)
 }
 

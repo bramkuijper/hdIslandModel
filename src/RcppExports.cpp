@@ -11,8 +11,8 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // runHDSpace
-Rcpp::DataFrame runHDSpace(int const Npatches, int const Nbp, double const v, double const c, double const d, bool const is_pure, double const mu, int max_time, double pHawk_init, int output_nth_generation);
-RcppExport SEXP _hdIslandModel_runHDSpace(SEXP NpatchesSEXP, SEXP NbpSEXP, SEXP vSEXP, SEXP cSEXP, SEXP dSEXP, SEXP is_pureSEXP, SEXP muSEXP, SEXP max_timeSEXP, SEXP pHawk_initSEXP, SEXP output_nth_generationSEXP) {
+Rcpp::DataFrame runHDSpace(int const Npatches, int const Nbp, double const v, double const c, double const d, bool const is_pure, double const mu, double const mu_d, int max_time, double pHawk_init, int output_nth_generation);
+RcppExport SEXP _hdIslandModel_runHDSpace(SEXP NpatchesSEXP, SEXP NbpSEXP, SEXP vSEXP, SEXP cSEXP, SEXP dSEXP, SEXP is_pureSEXP, SEXP muSEXP, SEXP mu_dSEXP, SEXP max_timeSEXP, SEXP pHawk_initSEXP, SEXP output_nth_generationSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -23,16 +23,17 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< double const >::type d(dSEXP);
     Rcpp::traits::input_parameter< bool const >::type is_pure(is_pureSEXP);
     Rcpp::traits::input_parameter< double const >::type mu(muSEXP);
+    Rcpp::traits::input_parameter< double const >::type mu_d(mu_dSEXP);
     Rcpp::traits::input_parameter< int >::type max_time(max_timeSEXP);
     Rcpp::traits::input_parameter< double >::type pHawk_init(pHawk_initSEXP);
     Rcpp::traits::input_parameter< int >::type output_nth_generation(output_nth_generationSEXP);
-    rcpp_result_gen = Rcpp::wrap(runHDSpace(Npatches, Nbp, v, c, d, is_pure, mu, max_time, pHawk_init, output_nth_generation));
+    rcpp_result_gen = Rcpp::wrap(runHDSpace(Npatches, Nbp, v, c, d, is_pure, mu, mu_d, max_time, pHawk_init, output_nth_generation));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_hdIslandModel_runHDSpace", (DL_FUNC) &_hdIslandModel_runHDSpace, 10},
+    {"_hdIslandModel_runHDSpace", (DL_FUNC) &_hdIslandModel_runHDSpace, 11},
     {NULL, NULL, 0}
 };
 

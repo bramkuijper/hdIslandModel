@@ -1,4 +1,5 @@
 #include <Rcpp.h>
+#include "individual.h"
 #include "patch.h"
 #include "simulate_hd_space.h"
 
@@ -75,7 +76,7 @@ SimulateHDSpatial::SimulateHDSpatial(
 // interact within patches and reproduce
 void SimulateHDSpatial::interact_reproduce()
 {
-    bool ind1_is_hawk,ind2_is_hawk;
+    bool ind1_is_hawk,ind2_is_hawk, d1, d2;
 
     double baseline_fitness = c;
 
@@ -130,7 +131,14 @@ void SimulateHDSpatial::interact_reproduce()
             assert(ind_idx + 1 < pop[patch_idx].breeders.size());
 
             ind1_is_hawk = pop[patch_idx].breeders[ind_idx].is_hawk;
+            d1 = pop[patch_idx].breeders[ind_idx].disperse[ind1_is_hawk];
+            assert(d1 >= 0);
+            assert(d1 <= 1);
+
             ind2_is_hawk = pop[patch_idx].breeders[ind_idx+1].is_hawk;
+            d2 = pop[patch_idx].breeders[ind_idx + 1].disperse[ind2_is_hawk];
+            assert(d2 >= 0.0);
+            assert(d2 <= 1.0);
 
             payoff1 = payoff2 = baseline_fitness;
 
@@ -159,19 +167,19 @@ void SimulateHDSpatial::interact_reproduce()
 
             sum_payoffs += d1 * payoff1 + d2 * payoff2;
 
-            local_sum_payoffs += payoff1 + payoff2;
+            local_sum_payoffs += (1.0 - d1) * payoff1 + (1.0 - d2) * payoff2;
 
             assert(payoff_idx + 2 <= payoffs_immigrant_parents.size());
 
-            payoffs_immigrant_parents[payoff_idx++] = payoff1;
-            payoffs_immigrant_parents[payoff_idx++] = payoff2;
+            payoffs_immigrant_parents[payoff_idx++] = d1 * payoff1;
+            payoffs_immigrant_parents[payoff_idx++] = d2 * payoff2;
             
 
-            pop[patch_idx].payoffs[ind_idx] = payoff1;
-            pop[patch_idx].payoffs[ind_idx + 1] = payoff2;
+            pop[patch_idx].payoffs[ind_idx] = (1.0 - d1) * payoff1;
+            pop[patch_idx].payoffs[ind_idx + 1] = (1.0 - d2) * payoff2;
 
-            pop[patch_idx].breeders[ind_idx].payoff = payoff1;
-            pop[patch_idx].breeders[ind_idx + 1].payoff = payoff2;
+            pop[patch_idx].breeders[ind_idx].payoff = (1.0 - d1) * payoff1;
+            pop[patch_idx].breeders[ind_idx + 1].payoff = (1.0 - d2) * payoff2;
 
         } // size_t ind_idx = 0, ind_idx += 2
 
@@ -194,7 +202,7 @@ void SimulateHDSpatial::interact_reproduce()
     double prob_local;
 
     // total prob of immigration per patch
-    double immigrants_per_patch = d * sum_payoffs / Npatches;
+    double immigrants_per_patch = sum_payoffs / Npatches;
     double locals_per_patch;
 
     // now recruit
@@ -206,7 +214,7 @@ void SimulateHDSpatial::interact_reproduce()
                 Nbp * (baseline_fitness + v));
 
         // sample local parent
-        locals_per_patch = pop[patch_idx].total_payoff * (1.0 - d);
+        locals_per_patch = pop[patch_idx].total_payoff;
 
         // competition function
         prob_local = locals_per_patch / 

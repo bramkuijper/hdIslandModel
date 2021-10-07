@@ -69,6 +69,7 @@ class SimulateHDSpatial
             ,bool const is_pure
             ,int const output_nth_generation
             ,double const mu
+            ,double const mu_d
             ,int const max_time);
 
         Rcpp::DataFrame run();
