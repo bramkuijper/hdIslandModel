@@ -43,12 +43,14 @@ SimulateHDSpatial::SimulateHDSpatial(
     ,generation{0}
     ,init_pHawk{init_pHawk}
     ,d{dispersal}
+    ,relatedness_regression{0.0}
     ,is_pure{is_pure}
     ,output_nth_timestep{output_nth_timestep}
     ,mu{mu}
     ,mu_d{mu_d}
     ,max_time{max_time}
 {
+    int id_ctr = 0;
     // loop through all the patches
     for (size_t patch_idx = 0; patch_idx < Npatches; ++patch_idx)
     {
@@ -67,6 +69,9 @@ SimulateHDSpatial::SimulateHDSpatial(
 
             pop[patch_idx].breeders[ind_idx].disperse[0] = d;
             pop[patch_idx].breeders[ind_idx].disperse[1] = d;
+
+            // give everybody a unique id
+            pop[patch_idx].breeders[ind_idx].id = id_ctr++;
         }
     }
 } // SimulateHDSpatial::SimulateHDSpatial()
@@ -81,13 +86,19 @@ void SimulateHDSpatial::interact_reproduce()
     double baseline_fitness = c;
 
     double sum_payoffs = 0.0;
-    double sum_d = 0.0;
 
     double local_sum_payoffs = 0.0;
     double local_sum_d = 0.0;
 
     double payoff1, payoff2;
 
+    // attempt at calculating relatedness - does not work!
+    double covzizj=0.0;
+    double varzi=0.0;
+    double meanzi=0.0;
+
+    double total_cov = 0.0;
+    double total_var = 0.0;
 
     // make a distribution of payoffs from which we can sample
     // later on
@@ -124,19 +135,45 @@ void SimulateHDSpatial::interact_reproduce()
         assert(pop[patch_idx].breeders.size() == Nbp);
         assert(pop[patch_idx].payoffs.size() == Nbp);
 
+        covzizj = 0.0;
+        varzi = 0.0;
+        meanzi = 0.0;
+
         // loop through pairs
         for (size_t ind_idx = 0; 
                 ind_idx < pop[patch_idx].breeders.size(); ind_idx+=2)
         {
+            // cov zi, zj
+            // we multiply x 2 as interaction
+            // takes place from ind 1 to ind 2
+            // and from ind 1 to ind 2
+            covzizj += 2 * pop[patch_idx].breeders[ind_idx].id
+                * pop[patch_idx].breeders[ind_idx + 1].id;
+
+            // update variance for ind 1
+            varzi += pop[patch_idx].breeders[ind_idx].id
+                * pop[patch_idx].breeders[ind_idx].id;
+
+            // update variance for ind 2
+            varzi += pop[patch_idx].breeders[ind_idx + 1].id
+                * pop[patch_idx].breeders[ind_idx + 1].id;
+
+            // update mean
+            meanzi += pop[patch_idx].breeders[ind_idx].id
+                + pop[patch_idx].breeders[ind_idx + 1].id;
+
+
             assert(ind_idx + 1 < pop[patch_idx].breeders.size());
 
             ind1_is_hawk = pop[patch_idx].breeders[ind_idx].is_hawk;
             d1 = pop[patch_idx].breeders[ind_idx].disperse[ind1_is_hawk];
+
             assert(d1 >= 0);
             assert(d1 <= 1);
 
             ind2_is_hawk = pop[patch_idx].breeders[ind_idx+1].is_hawk;
             d2 = pop[patch_idx].breeders[ind_idx + 1].disperse[ind2_is_hawk];
+
             assert(d2 >= 0.0);
             assert(d2 <= 1.0);
 
@@ -183,11 +220,27 @@ void SimulateHDSpatial::interact_reproduce()
 
         } // size_t ind_idx = 0, ind_idx += 2
 
+        meanzi /= Nbp;
+        covzizj = covzizj / Nbp - meanzi * meanzi;
+        varzi = varzi / Nbp - meanzi * meanzi;
+
+        total_cov += covzizj;
+        total_var += varzi;
+
         pop[patch_idx].total_payoff = local_sum_payoffs;
+
+        assert(local_sum_payoffs >= 0);
 
     } // end for (size_t patch_idx = 0; 
             // patch_idx < pop.size(); ++patch_idx)
 
+//    meanzi /= Nbp * pop.size();
+//
+//    covzizj = covzizj / (Nbp * pop.size()) - meanzi * meanzi; 
+//
+//    varzi = varzi / (Nbp * pop.size()) - meanzi * meanzi; 
+
+    relatedness_regression = total_cov / total_var;
 
     // make a vector of individuals to use for recruiting purposes
     std::vector <Individual> recruits(Nbp);
@@ -208,7 +261,7 @@ void SimulateHDSpatial::interact_reproduce()
     // now recruit
     for (int patch_idx = 0; patch_idx < pop.size(); ++patch_idx)
     {
-        assert(pop[patch_idx].total_payoff > 0.0);
+        assert(pop[patch_idx].total_payoff >= 0.0);
 
         assert(pop[patch_idx].total_payoff <= 
                 Nbp * (baseline_fitness + v));
@@ -283,6 +336,13 @@ void SimulateHDSpatial::create_kid(Individual &parent, Individual &kid)
     kid.disperse[0] = mutate_prob(parent.disperse[0], mu_d);
     kid.disperse[1] = mutate_prob(parent.disperse[1], mu_d);
 
+    kid.id = parent.id;
+
+    if (uniform(rng_r) < mu_id)
+    {
+        ++kid.id; 
+    }
+
 } // end create_kid()
 
 double SimulateHDSpatial::mutate_prob(double const orig_val, double const mu)
@@ -328,11 +388,16 @@ Rcpp::DataFrame SimulateHDSpatial::run()
     Rcpp::NumericVector mean_pHawk(floor((double)max_time / output_nth_timestep));
     Rcpp::NumericVector sd_pHawk(floor((double)max_time / output_nth_timestep));
     Rcpp::NumericVector timestep_vec(floor((double)max_time / output_nth_timestep));
+    Rcpp::NumericVector dHawk(floor((double)max_time / output_nth_timestep));
+    Rcpp::NumericVector dDove(floor((double)max_time / output_nth_timestep));
+    Rcpp::NumericVector relatedness(floor((double)max_time / output_nth_timestep));
 
     double fHawk = 0.0;
     double sd_fHawk = 0.0; 
     double pHawk_x = 0.0;
     double sd_pHawk_x = 0.0;
+    double dHawk_x = 0.0;
+    double dDove_x = 0.0;
 
     int stats_ctr = 0;
 
@@ -340,7 +405,7 @@ Rcpp::DataFrame SimulateHDSpatial::run()
     {
         if (generation % output_nth_timestep == 0)
         {
-            stats(fHawk, sd_fHawk, pHawk_x, sd_pHawk_x);
+            stats(fHawk, sd_fHawk, pHawk_x, sd_pHawk_x, dHawk_x, dDove_x);
 
             assert(stats_ctr < floor((double)max_time / output_nth_timestep));
             freqHawk[stats_ctr] = fHawk;
@@ -348,6 +413,9 @@ Rcpp::DataFrame SimulateHDSpatial::run()
             mean_pHawk[stats_ctr] = pHawk_x;
             sd_pHawk[stats_ctr] = sd_pHawk_x;
             timestep_vec[stats_ctr] = generation;
+            dHawk[stats_ctr] = dHawk_x;
+            dDove[stats_ctr] = dDove_x;
+            relatedness[stats_ctr] = relatedness_regression;
 
             ++stats_ctr;
         }
@@ -364,7 +432,11 @@ Rcpp::DataFrame SimulateHDSpatial::run()
             ,Rcpp::Named("freq_Hawk") = freqHawk
             ,Rcpp::Named("sd_freqHawk") = sd_freqHawk
             ,Rcpp::Named("mean_pHawk") = mean_pHawk 
-            ,Rcpp::Named("sd_pHawk") = sd_pHawk);
+            ,Rcpp::Named("sd_pHawk") = sd_pHawk
+            ,Rcpp::Named("dHawk") = dHawk
+            ,Rcpp::Named("dDove") = dDove
+//            ,Rcpp::Named("relatedness") = relatedness
+                );
             
     return(simulation_data);
 }// end SimulateHDSpatial::run()
@@ -374,18 +446,23 @@ void SimulateHDSpatial::stats(
         double &freq_Hawk
         ,double &sd_freq_Hawk
         ,double &mean_pHawk
-        ,double &sd_pHawk)
+        ,double &sd_pHawk
+        ,double &mean_dHawk
+        ,double &mean_dDove
+        )
 {
     freq_Hawk = 0.0;
     sd_freq_Hawk = 0.0;
     mean_pHawk = 0.0;
+    mean_dHawk = 0.0;
+    mean_dDove = 0.0;
     sd_pHawk = 0.0;
 
     double ss_freq_Hawk = 0.0;
     double ss_pHawk = 0.0;
 
     bool h;
-    double p;
+    double p, d;
 
     for (size_t patch_idx = 0; patch_idx < pop.size(); ++patch_idx)
     {
@@ -393,6 +470,12 @@ void SimulateHDSpatial::stats(
                 ind_idx < pop[patch_idx].breeders.size(); ++ind_idx)
         {
             h = pop[patch_idx].breeders[ind_idx].is_hawk;
+
+            d = pop[patch_idx].breeders[ind_idx].disperse[0];
+            mean_dDove += d;
+            
+            d = pop[patch_idx].breeders[ind_idx].disperse[1];
+            mean_dHawk += d;
 
             freq_Hawk += h;
             ss_freq_Hawk += h * h;
@@ -411,6 +494,8 @@ void SimulateHDSpatial::stats(
 
     freq_Hawk /= totalN;
     mean_pHawk /= totalN;
+    mean_dHawk /= totalN;
+    mean_dDove /= totalN;
     ss_pHawk /= totalN;
     ss_freq_Hawk /= totalN;
 

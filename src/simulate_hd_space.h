@@ -29,6 +29,8 @@ class SimulateHDSpatial
         double init_pHawk;
 
         double d;
+        
+        double relatedness_regression;
 
         // are strategies pure or not?
         bool is_pure;
@@ -40,6 +42,7 @@ class SimulateHDSpatial
         // mutation rate
         double mu;
         double mu_d;
+        static constexpr double mu_id{0.01};
 
         // max time the simulation runs
         int max_time;
@@ -49,7 +52,9 @@ class SimulateHDSpatial
             double &freq_Hawk
             ,double &sd_freq_Hawk
             ,double &mean_pHawk
-            ,double &sd_pHawk);
+            ,double &sd_pHawk
+            ,double &mean_dHawk
+            ,double &mean_dDove);
 
         void interact_reproduce();
 

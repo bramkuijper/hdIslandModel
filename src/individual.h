@@ -8,6 +8,7 @@ class Individual
         double payoff;
         double prob_hawk;
         double disperse[2];
+        double id;
 
         Individual();
 
