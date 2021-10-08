@@ -26,7 +26,7 @@
 //'    with mean 0 and standard deviation 0.01. \code{is_pure} is a boolean.
 //' @param mu Mutation rate from Hawk to Dove, from Dove to Hawk
 //'     (floating-point value between 0 and 1)
-//' @param mu Mutation rate of dispersal of hawks and doves. If \code{mu_d=0}
+//' @param mu_d Mutation rate of dispersal of hawks and doves. If \code{mu_d=0}
 //'     hawks and doves always disperse with probability \code{d}. If \code{mu_d>0}
 //'     hawks and doves evolve their own dispersal rates
 //'     (floating-point value between 0 and 1)
